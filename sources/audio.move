@@ -37,6 +37,9 @@ public struct Audio has drop, store {
     sample_rate_hz: u32,
     /// Total number of PCM samples in the audio.
     samples: u64,
+    /// `blake2b-256` digest of the canonical decoded PCM (codec-independent
+    /// content fingerprint). 32 bytes.
+    pcm_digest: vector<u8>,
     /// Walrus data reference for the audio (must be a blob).
     data: WalrusData,
 }
@@ -52,6 +55,7 @@ public struct AudioIngestedEvent<phantom Ingester: drop> has copy, drop {
     sample_rate_hz: u32,
     samples: u64,
     duration_ms: u64,
+    pcm_digest: vector<u8>,
 }
 
 // === Constants ===
@@ -60,6 +64,8 @@ public struct AudioIngestedEvent<phantom Ingester: drop> has copy, drop {
 const MAX_SAMPLES: u64 = 18_446_744_073_709_551;
 /// Maximum length of a format short name in bytes (generous; real names are <=8).
 const MAX_FORMAT_LENGTH: u64 = 16;
+/// Required length of the PCM digest in bytes (blake2b-256).
+const PCM_DIGEST_LENGTH: u64 = 32;
 
 // === Errors ===
 
@@ -80,6 +86,8 @@ const EEmptyFormat: u64 = 26;
 const EFormatTooLong: u64 = 27;
 /// Format contains an invalid character (must be lowercase `a`-`z` or `0`-`9`).
 const EInvalidFormatChar: u64 = 28;
+/// PCM digest must be exactly 32 bytes (blake2b-256).
+const EInvalidDigestLength: u64 = 29;
 // === Public Functions ===
 
 /// Creates a new verified audio. The `Ingester` witness type gates creation —
@@ -90,6 +98,7 @@ public fun new<Ingester: drop>(
     bit_depth: u8,
     sample_rate_hz: u32,
     samples: u64,
+    pcm_digest: vector<u8>,
     data: WalrusData,
     _ingester: Ingester,
 ): Audio {
@@ -101,6 +110,8 @@ public fun new<Ingester: drop>(
         format_bytes.all!(|c| (*c >= 0x61 && *c <= 0x7a) || (*c >= 0x30 && *c <= 0x39)),
         EInvalidFormatChar,
     );
+    // PCM digest must be a 32-byte blake2b-256 hash.
+    assert!(pcm_digest.length() == PCM_DIGEST_LENGTH, EInvalidDigestLength);
     // Assert the channels are greater than 0.
     assert!(channels > 0, EInvalidChannels);
     // Assert the bit depth is 8, 16, 24, or 32.
@@ -127,6 +138,7 @@ public fun new<Ingester: drop>(
         sample_rate_hz,
         samples,
         duration_ms,
+        pcm_digest,
     });
 
     Audio {
@@ -136,6 +148,7 @@ public fun new<Ingester: drop>(
         bit_depth,
         sample_rate_hz,
         samples,
+        pcm_digest,
         data,
     }
 }
@@ -181,4 +194,9 @@ public fun ingester_type(self: &Audio): &TypeName {
 /// Returns the codec/container format of the stored blob (e.g. `flac`).
 public fun format(self: &Audio): &String {
     &self.format
+}
+
+/// Returns the `blake2b-256` digest of the canonical decoded PCM (32 bytes).
+public fun pcm_digest(self: &Audio): &vector<u8> {
+    &self.pcm_digest
 }
