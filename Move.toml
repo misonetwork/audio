@@ -1,0 +1,8 @@
+[package]
+name = "audio"
+edition = "2024"
+license = "Apache 2.0"
+authors = ["Miso Labs, Inc. (os@miso.network)"]
+
+[dependencies]
+ori = { git = "https://github.com/unconfirmedlabs/ori.git", subdir = "move", rev = "main" }
