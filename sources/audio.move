@@ -6,13 +6,15 @@
 ///
 /// ### Key Features:
 ///
-/// - Audio format parameters (channels, bit depth, sample rate)
+/// - Format (codec/container, e.g. `flac`) and PCM parameters (channels, bit
+///   depth, sample rate, samples)
 /// - Walrus blob ID for storage reference
 /// - Witness-gated creation: only packages that can produce an `Ingester` witness
 ///   type (with `drop`) can create `Audio`. The `Audio` records which ingester
 ///   attested it, so multiple ingester implementations can coexist.
 module audio::audio;
 
+use std::string::String;
 use std::type_name::{TypeName, with_defining_ids};
 use sui::event::emit;
 use ori::walrus_data::WalrusData;
@@ -24,6 +26,9 @@ use ori::walrus_data::WalrusData;
 public struct Audio has drop, store {
     /// The ingester that attested this audio.
     ingester: TypeName,
+    /// Codec/container of the stored blob, as a bare lowercase short name
+    /// (e.g. `flac`, `wav`, `opus`). No `audio/` prefix — the type is already audio.
+    format: String,
     /// Number of audio channels (1 = mono, 2 = stereo).
     channels: u8,
     /// Bits per sample (8, 16, 24, or 32).
@@ -41,6 +46,7 @@ public struct Audio has drop, store {
 /// Emitted when an audio file is ingested.
 public struct AudioIngestedEvent<phantom Ingester: drop> has copy, drop {
     blob_id: u256,
+    format: String,
     channels: u8,
     bit_depth: u8,
     sample_rate_hz: u32,
@@ -66,11 +72,14 @@ const EInvalidSampleRate: u64 = 23;
 const EInvalidSamples: u64 = 24;
 /// Sample count would cause overflow in duration calculation.
 const ESamplesOverflow: u64 = 25;
+/// Format must not be empty.
+const EEmptyFormat: u64 = 26;
 // === Public Functions ===
 
 /// Creates a new verified audio. The `Ingester` witness type gates creation —
 /// only the package that defines the witness can call this function.
 public fun new<Ingester: drop>(
+    format: String,
     channels: u8,
     bit_depth: u8,
     sample_rate_hz: u32,
@@ -78,6 +87,8 @@ public fun new<Ingester: drop>(
     data: WalrusData,
     _ingester: Ingester,
 ): Audio {
+    // Assert the format is non-empty.
+    assert!(!format.is_empty(), EEmptyFormat);
     // Assert the channels are greater than 0.
     assert!(channels > 0, EInvalidChannels);
     // Assert the bit depth is 8, 16, 24, or 32.
@@ -98,6 +109,7 @@ public fun new<Ingester: drop>(
 
     emit(AudioIngestedEvent<Ingester> {
         blob_id: data.blob_id(),
+        format,
         channels,
         bit_depth,
         sample_rate_hz,
@@ -107,6 +119,7 @@ public fun new<Ingester: drop>(
 
     Audio {
         ingester: with_defining_ids<Ingester>(),
+        format,
         channels,
         bit_depth,
         sample_rate_hz,
@@ -151,4 +164,9 @@ public fun duration_ms(self: &Audio): u64 {
 /// Returns a reference to the ingester type name.
 public fun ingester_type(self: &Audio): &TypeName {
     &self.ingester
+}
+
+/// Returns the codec/container format of the stored blob (e.g. `flac`).
+public fun format(self: &Audio): &String {
+    &self.format
 }
