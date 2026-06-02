@@ -13,6 +13,8 @@ const EInvalidSampleRate: u64 = 23;
 const EInvalidSamples: u64 = 24;
 const ESamplesOverflow: u64 = 25;
 const EEmptyFormat: u64 = 26;
+const EFormatTooLong: u64 = 27;
+const EInvalidFormatChar: u64 = 28;
 
 /// Test witness type for ingestion tests.
 public struct TestIngesterWitness() has drop;
@@ -116,4 +118,20 @@ fun test_new_samples_overflow() {
 #[test, expected_failure(abort_code = EEmptyFormat, location = audio::audio)]
 fun test_new_empty_format() {
     af::new(b"".to_string(), 2, 16, 44100, 1000, walrus_data::new_blob(1), TestIngesterWitness());
+}
+
+#[test, expected_failure(abort_code = EFormatTooLong, location = audio::audio)]
+fun test_new_format_too_long() {
+    // 17 chars > MAX_FORMAT_LENGTH (16)
+    af::new(b"aaaaaaaaaaaaaaaaa".to_string(), 2, 16, 44100, 1000, walrus_data::new_blob(1), TestIngesterWitness());
+}
+
+#[test, expected_failure(abort_code = EInvalidFormatChar, location = audio::audio)]
+fun test_new_format_uppercase() {
+    af::new(b"FLAC".to_string(), 2, 16, 44100, 1000, walrus_data::new_blob(1), TestIngesterWitness());
+}
+
+#[test, expected_failure(abort_code = EInvalidFormatChar, location = audio::audio)]
+fun test_new_format_with_slash() {
+    af::new(b"audio/flac".to_string(), 2, 16, 44100, 1000, walrus_data::new_blob(1), TestIngesterWitness());
 }

@@ -58,6 +58,8 @@ public struct AudioIngestedEvent<phantom Ingester: drop> has copy, drop {
 
 /// Maximum number of samples to prevent overflow in duration_ms (u64::MAX / 1_000).
 const MAX_SAMPLES: u64 = 18_446_744_073_709_551;
+/// Maximum length of a format short name in bytes (generous; real names are <=8).
+const MAX_FORMAT_LENGTH: u64 = 16;
 
 // === Errors ===
 
@@ -74,6 +76,10 @@ const EInvalidSamples: u64 = 24;
 const ESamplesOverflow: u64 = 25;
 /// Format must not be empty.
 const EEmptyFormat: u64 = 26;
+/// Format exceeds maximum length.
+const EFormatTooLong: u64 = 27;
+/// Format contains an invalid character (must be lowercase `a`-`z` or `0`-`9`).
+const EInvalidFormatChar: u64 = 28;
 // === Public Functions ===
 
 /// Creates a new verified audio. The `Ingester` witness type gates creation —
@@ -87,8 +93,14 @@ public fun new<Ingester: drop>(
     data: WalrusData,
     _ingester: Ingester,
 ): Audio {
-    // Assert the format is non-empty.
-    assert!(!format.is_empty(), EEmptyFormat);
+    // Format must be a non-empty, lowercase alphanumeric short name (e.g. `flac`).
+    let format_bytes = format.as_bytes();
+    assert!(!format_bytes.is_empty(), EEmptyFormat);
+    assert!(format_bytes.length() <= MAX_FORMAT_LENGTH, EFormatTooLong);
+    assert!(
+        format_bytes.all!(|c| (*c >= 0x61 && *c <= 0x7a) || (*c >= 0x30 && *c <= 0x39)),
+        EInvalidFormatChar,
+    );
     // Assert the channels are greater than 0.
     assert!(channels > 0, EInvalidChannels);
     // Assert the bit depth is 8, 16, 24, or 32.
