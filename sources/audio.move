@@ -11,7 +11,7 @@
 /// - Witness-gated creation: only packages that can produce an `Ingester` witness
 ///   type (with `drop`) can create `Audio`. The `Audio` records which ingester
 ///   attested it, so multiple ingester implementations can coexist.
-module audio::file;
+module audio::audio;
 
 use std::type_name::{TypeName, with_defining_ids};
 use sui::event::emit;
