@@ -17,7 +17,7 @@ module audio::audio;
 use std::string::String;
 use std::type_name::{TypeName, with_defining_ids};
 use sui::event::emit;
-use ori::walrus_data::WalrusData;
+use walrus_data::walrus_data::WalrusData;
 
 // === Structs ===
 
