@@ -16,19 +16,9 @@ const EEmptyFormat: u64 = 26;
 const EFormatTooLong: u64 = 27;
 const EInvalidFormatChar: u64 = 28;
 const EInvalidDigestLength: u64 = 29;
-const EEmptyDek: u64 = 30;
-const ENotEncrypted: u64 = 31;
 
 /// Test witness type for ingestion tests.
 public struct TestIngesterWitness() has drop;
-
-/// Test decryption-policy witness type.
-public struct TestPolicyWitness() has drop;
-
-/// A non-empty sealed DEK for encryption tests.
-fun test_dek(): vector<u8> {
-    x"deadbeefdeadbeefdeadbeefdeadbeef"
-}
 
 // Must match audio.move
 const MAX_SAMPLES: u64 = 18_446_744_073_709_551;
@@ -157,58 +147,4 @@ fun test_new_format_with_slash() {
 fun test_new_wrong_digest_length() {
     // 1-byte digest != 32
     af::new(b"flac".to_string(), 2, 16, 44100, 1000, x"00", walrus_data::new_blob(1), TestIngesterWitness());
-}
-
-// === Encryption ===
-
-#[test]
-fun test_new_is_unencrypted() {
-    let audio = af::new(b"flac".to_string(), 2, 16, 44100, 1000, test_digest(), walrus_data::new_blob(1), TestIngesterWitness());
-    assert_eq!(audio.is_encrypted(), false);
-}
-
-#[test]
-fun test_new_encrypted() {
-    let audio = af::new_encrypted(
-        b"flac".to_string(), 2, 16, 44100, 1000, test_digest(), walrus_data::new_blob(7),
-        test_dek(), TestIngesterWitness(), TestPolicyWitness(),
-    );
-    assert_eq!(audio.is_encrypted(), true);
-    // Policy is the caller-provided witness type, stamped immutably.
-    assert_eq!(audio.policy(), type_name::with_defining_ids<TestPolicyWitness>());
-    // Sealed DEK is stored on-chain verbatim.
-    assert_eq!(*audio.sealed_dek(), test_dek());
-    // Encrypted audio still carries full technical metadata + blob reference.
-    assert_eq!(audio.channels(), 2);
-    assert_eq!(audio.data().blob_id(), 7);
-    assert_eq!(*audio.pcm_digest(), test_digest());
-}
-
-#[test, expected_failure(abort_code = EEmptyDek, location = audio::audio)]
-fun test_new_encrypted_empty_dek_aborts() {
-    af::new_encrypted(
-        b"flac".to_string(), 2, 16, 44100, 1000, test_digest(), walrus_data::new_blob(1),
-        vector[], TestIngesterWitness(), TestPolicyWitness(),
-    );
-}
-
-#[test, expected_failure(abort_code = ENotEncrypted, location = audio::audio)]
-fun test_policy_on_unencrypted_aborts() {
-    let audio = af::new(b"flac".to_string(), 2, 16, 44100, 1000, test_digest(), walrus_data::new_blob(1), TestIngesterWitness());
-    audio.policy();
-}
-
-#[test, expected_failure(abort_code = ENotEncrypted, location = audio::audio)]
-fun test_sealed_dek_on_unencrypted_aborts() {
-    let audio = af::new(b"flac".to_string(), 2, 16, 44100, 1000, test_digest(), walrus_data::new_blob(1), TestIngesterWitness());
-    audio.sealed_dek();
-}
-
-// Encrypted audio enforces the same technical-metadata validation as plaintext.
-#[test, expected_failure(abort_code = EInvalidBitDepth, location = audio::audio)]
-fun test_new_encrypted_invalid_bit_depth_aborts() {
-    af::new_encrypted(
-        b"flac".to_string(), 2, 17, 44100, 1000, test_digest(), walrus_data::new_blob(1),
-        test_dek(), TestIngesterWitness(), TestPolicyWitness(),
-    );
 }
