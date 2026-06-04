@@ -4,7 +4,7 @@ module audio::audio_tests;
 use audio::audio as af;
 use std::unit_test::assert_eq;
 use std::type_name;
-use walrus_data::walrus_data;
+use ori::walrus_data;
 
 // Error codes from audio.move
 const EInvalidChannels: u64 = 21;
